@@ -4,3 +4,6 @@ scikit-learn
 matplotlib
 seaborn
 shap
+catboost
+sklearn
+shap
