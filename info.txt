@@ -1,0 +1,33 @@
+Jev, Kev, and Laya Models – Intent Classification and Tool Routing
+
+Jev, Kev, and Laya models can be used to recognize user intent and route queries to the appropriate AI agent tools
+
+The system identifies whether the user wants to obtain a prediction rather than historical statistics. 
+Based on the recognized intent, it selects the appropriate action, executes the ML model, and presents the results.
+
+These models would be responsible for determining which action should be performed.
+
+- Jev – A decision-making model used for intent classification and tool selection.
+- Kev – Qwen-based models that can be run locally and used for query routing.
+- Laya – A lightweight model designed for decision-making tasks, such as identifying query categories.
+
+User Query - Kev / Jev / Laya (Intent Classification) - predict_stay - LLM Agent → Response
+
+1. The user submits a question.
+2. Kev, Jev, or Laya identifies the user's intent.
+3. The system selects the appropriate tool, such as `predict_stay`.
+4. The ML model generates a prediction.
+5. The LLM agent interprets the prediction and generates a natural-language response.
+
+We can use LightGBM or CatBoost to predict the time in shelter or probability of an animal staying in the shelter for more than 30 days, 
+or classification of that dog will quickly leave the shelter
+helping identify animals that may need additional attention. 
+
+Quantile regression could provide estimated stay duration ranges instead of exact predictions, 
+Cox survival analysis could help identify factors associated with slower adoption, such as age, breed, or health condition. 
+
+Additionally, CatBoostClassifier could be used to predict shelter outcomes, 
+such as adoption, transfer, or return to owner. 
+
+These models could be integrated with an LLM agent to analyze historical data,
+explain predictions using SHAP, and generate adoption campaign recommendations.
