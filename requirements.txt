@@ -5,5 +5,5 @@ matplotlib
 seaborn
 shap
 catboost
-sklearn
+scikit-learn
 shap
