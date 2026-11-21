@@ -197,7 +197,7 @@ def feature_engineering_days(df):
     df = df.drop(columns=[
         "datetime2",
         "age_upon_intake",
-        "sex_upon_intake", "animal_id"
+        "sex_upon_intake", "animal_id", "found_location"
     ], errors="ignore")
 
     return df.reset_index(drop=True)
