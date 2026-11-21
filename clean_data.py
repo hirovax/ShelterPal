@@ -196,7 +196,7 @@ def feature_engineering_days(df):
     # Drop unnecessary columns
     df = df.drop(columns=[
         "datetime2",
-        "age_upon_intake",
+        "age_upon_intake", "animal_id_intake",
         "sex_upon_intake", "animal_id", "found_location"
     ], errors="ignore")
 
