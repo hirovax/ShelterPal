@@ -115,8 +115,6 @@ def feature_engineering(df):
     df["year"] = df["intake_datetime"].dt.year
     df["is_weekend"] = df["intake_datetime"].dt.dayofweek.isin([5, 6]).astype(int)
 
-    df = date_window(df, months=3, days=30)
-
     df = df[(df["intake_type"] != "Euthanasia Request") & (df["intake_type"] != "Wildlife")]
 
     # Drop unnecessary columns
@@ -134,3 +132,72 @@ def feature_engineering(df):
     df = df.reset_index(drop=True)
 
     return df
+
+
+def feature_engineering_days(df):
+    df = df.copy()
+
+    # Sex and neuter/spay status
+    df["sex"] = df["sex_upon_intake"].apply(map_sex)
+    df["intact"] = df["sex_upon_intake"].apply(status)
+
+    # Breed
+    df["is_mixed_breed"] = df["breed"].str.contains("/|Mix", na=False).astype(int)
+    df["primary_breed"] = df["breed"].str.split(r"/|Mix").str[0].str.strip()
+
+    # Coat color
+    df["is_mixed_color"] = df["color"].str.contains("/|Tricolor", na=False).astype(int)
+    df["primary_color"] = df["color"].fillna("Unknown").str.split("/").str[0].str.strip()
+    
+
+    # Name
+    df["has_name"] = df["name"].notna().astype(int)
+    df["name_length"] = df["name"].fillna("").str.len()
+    
+    # Age at intake
+    age = df["age_upon_intake"].str.extract(
+        r"(\d+)\s+(year|month|week|day)"
+    )
+
+    multipliers = {
+        "year": 365,
+        "month": 30,
+        "week": 7,
+        "day": 1
+    }
+
+    df["age_days"] = pd.to_numeric(age[0], errors="coerce")* age[1].map(multipliers)
+    #df["age_group"] = pd.cut(df["age_days"], bins=[-np.inf, 365, 365 * 7, np.inf], labels=["Young", "Adult", "Senior"]).astype(str)
+
+    # Date-related features
+    df["datetime"] = pd.to_datetime(df["datetime"])
+    df["day_of_week"] = df["datetime"].dt.day_name()
+    df["month"] = df["datetime"].dt.month
+    df["year"] = df["datetime"].dt.year
+    #df["intake_hour"] = df["datetime"].dt.hour
+
+    df["is_weekend"] = df["datetime"].dt.dayofweek.isin([5, 6]).astype(int)
+
+    # Filter intake types
+    df = df[~df["intake_type"].isin(["Euthanasia Request", "Wildlife"])].copy()
+
+
+    # Fill categorical missing values
+    cat_cols = [
+        "name", "breed", "primary_breed",
+        "color", "found_location",
+        "intake_condition", "intake_type",
+        "sex", "intact", "day_of_week"
+    ]
+
+    df[cat_cols] = df[cat_cols].fillna("Unknown").astype(str)
+    
+
+    # Drop unnecessary columns
+    df = df.drop(columns=[
+        "datetime2",
+        "age_upon_intake",
+        "sex_upon_intake", "animal_id"
+    ], errors="ignore")
+
+    return df.reset_index(drop=True)
