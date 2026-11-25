@@ -5,6 +5,8 @@ import os
 
 from pathlib import Path
 import pandas as pd
+import shap 
+
 from catboost import CatBoostClassifier
 
 from clean_data import feature_engineering_days
@@ -25,7 +27,7 @@ def load_model(animal_type):
         raise ValueError("Animal type must be 'dog' or 'cat' ")
 
     model = CatBoostClassifier()
-    model.load_model(str[paths[animal_type]])
+    model.load_model(str(paths[animal_type]))
 
     return model
 
@@ -38,7 +40,7 @@ def predict_animal(animal_type, animal_data):
     if df_fe.empty:
         raise ValueError("After feature engineering the df is empty")
 
-    X = df[model.feature_names_].copy()
+    X = df_fe[model.feature_names_].copy()
     probs = model.predict_proba(X)[0]
 
     probabilities = {
@@ -52,18 +54,60 @@ def predict_animal(animal_type, animal_data):
         "over_30_days": probabilities[2]
     }
     
-def explain_animal():
-    print("shap")
+def explain_animal(animal_type, animal_data):
+    model = load_model(animal_type)
+
+    df = pd.DataFrame([animal_data])
+    df_fe = feature_engineering_days(df)
+    X = df_fe[model.feature_names_].copy()
+
+    explainer = shap.TreeExplainer(model)
+    shap_values = explainer(X)
+
+    class_names = {
+        0: "under_7_days", 
+        1: "between_7_30_days",
+        2: "over_30_days"
+    }
+
+    explanations = {}
+
+    for class_idx, cls in enumerate(model.classes_):
+        values = shap_values.values[0, :, class_idx]
+
+        explanation_df = pd.DataFrame({
+            "feature": X.columns, 
+            "shap_value": values, 
+            "feature_value": X.iloc[0].values
+        })
+
+        explanation_df["importance"] = explanation_df["shap_values"].abs()
+        top_features = explanation_df.sort_values("importance", ascending=False).head(5)
+
+        explanations[class_names[int(cls)]] = (
+            top_features[["feature", "feature_value", "shap_value"]].to_dict(orient="records")
+        )
+
+    return explanations
+
 
 def get_animal_info():
     print("animal-info")
 
+def get_high_risk_animals():
+    print("high-risk")
+
+def shelter_statistics():
+    print("shelter-statistics")
+
 def main():
     load_dotenv()
-    api_key = os.environ("GEMINI_API_KEY")
+    api_key = os.getenv("GEMINI_API_KEY")
 
     if not api_key:
         raise ValueError("GEMINI_API_KEY is missing in .env")
 
     #client = genai.configure(api_key=api_key)
-    
+
+if __name__ == "__main__":
+    main()
