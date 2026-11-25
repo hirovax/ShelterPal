@@ -136,9 +136,8 @@ def feature_engineering(df):
 
 def feature_engineering_days(df):
     df = df.sort_values("datetime").copy()
+    
 
-    df["previous_intakes"] = df.groupby("animal_id").cumcount()
-    df["is_repeat"] = (df["previous_intakes"] > 0).astype(int)
 
     df["intake_hour"] = df["datetime"].dt.hour
 
