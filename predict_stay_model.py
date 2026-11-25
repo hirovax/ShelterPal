@@ -1,5 +1,5 @@
 """
-Finalny model CatBoost: czas pobytu w schronisku (<=7 dni / 7-30 dni / >30 dni).
+Finalny model CatBoost: czas pobytu w schronisku (<=4 dni / 4-10 dni / >10 dni).
 
 Trening (z katalogu głównego projektu):
     python predict_stay.py train Dog
@@ -27,7 +27,7 @@ ROOT = Path(__file__).resolve().parent
 RAW = ROOT / "data" / "austin" / "raw"
 MODELS = ROOT / "models"
 
-BINS = [-np.inf, 7, 30, np.inf]  # klasa 0: <=7 dni, 1: 7-30 dni, 2: >30 dni
+BINS = [-np.inf, 4, 10, np.inf]  # klasa 0: <=4 dni, 1: 4-10 dni, 2: >10 dni
 RECALL_TARGET = 0.8              # cel recall dla klasy >30 dni przy wyborze progu
 
 # Kolumny, które nie są znane w chwili przyjęcia albo nie są cechami
@@ -93,7 +93,7 @@ def train(animal):
     )
     model.fit(X_tr, y_tr, cat_features=cat_cols, eval_set=(X_va, y_va), use_best_model=True)
 
-    # Próg dla klasy >30 dni wybrany na walidacji
+    # Próg dla klasy >10 dni wybrany na walidacji
     p_va_long = model.predict_proba(X_va)[:, 2]
     prec, rec, thr = precision_recall_curve((y_va == 2).astype(int), p_va_long)
     ok = rec[:-1] >= RECALL_TARGET
@@ -107,11 +107,11 @@ def train(animal):
     print(f"\n[{animal}] train={len(X_tr)} val={len(X_va)} test={len(X_te)}")
     print(f"Log loss (test):          {log_loss(y_te, p_te, labels=[0, 1, 2]):.4f}")
     print(f"Macro F1 (test):          {f1_score(y_te, p_te.argmax(axis=1), average='macro'):.4f}")
-    print(f"PR-AUC dla >30 dni:       {average_precision_score(y_te_long, p_te[:, 2]):.4f}")
-    print(f"Próg dla >30 dni:         {threshold_long:.3f}")
+    print(f"PR-AUC dla >10 dni:       {average_precision_score(y_te_long, p_te[:, 2]):.4f}")
+    print(f"Próg dla >10 dni:         {threshold_long:.3f}")
     print(f"Oznaczone (flag rate):    {flag.mean():.1%}")
-    print(f"Precyzja dla >30 dni:     {tp / max(flag.sum(), 1):.3f}")
-    print(f"Recall dla >30 dni:       {tp / max(y_te_long.sum(), 1):.3f}")
+    print(f"Precyzja dla >10 dni:     {tp / max(flag.sum(), 1):.3f}")
+    print(f"Recall dla >10 dni:       {tp / max(y_te_long.sum(), 1):.3f}")
 
     MODELS.mkdir(exist_ok=True)
     model.save_model(str(MODELS / f"{animal.lower()}_days.cbm"))
@@ -165,9 +165,9 @@ def predict_stay(animal, record):
     p_short, p_mid, p_long = p[idx.index(0)], p[idx.index(1)], p[idx.index(2)]
 
     return {
-        "p_do_7_dni": round(float(p_short), 3),
-        "p_7_30_dni": round(float(p_mid), 3),
-        "p_powyzej_30_dni": round(float(p_long), 3),
+        "p_do_4_dni": round(float(p_short), 3),
+        "p_4_10_dni": round(float(p_mid), 3),
+        "p_powyzej_10_dni": round(float(p_long), 3),
         "flaga_dlugi_pobyt": bool(p_long >= meta["threshold_long"]),
     }
 
