@@ -135,7 +135,17 @@ def feature_engineering(df):
 
 
 def feature_engineering_days(df):
-    df = df.copy()
+    df = df.sort_values("datetime").copy()
+
+    df["previous_intakes"] = df.groupby("animal_id").cumcount()
+    df["is_repeat"] = (df["previous_intakes"] > 0).astype(int)
+
+    df["intake_hour"] = df["datetime"].dt.hour
+
+
+    #seasonality
+    df["month_sin"] = np.sin(2 * np.pi * df["datetime"].dt.month / 12)
+    df["month_cos"] = np.cos(2 * np.pi * df["datetime"].dt.month / 12)
 
     # Sex and neuter/spay status
     df["sex"] = df["sex_upon_intake"].apply(map_sex)
@@ -149,7 +159,6 @@ def feature_engineering_days(df):
     df["is_mixed_color"] = df["color"].str.contains("/|Tricolor", na=False).astype(int)
     df["primary_color"] = df["color"].fillna("Unknown").str.split("/").str[0].str.strip()
     
-
     # Name
     df["has_name"] = df["name"].notna().astype(int)
     df["name_length"] = df["name"].fillna("").str.len()
@@ -180,6 +189,16 @@ def feature_engineering_days(df):
 
     # Filter intake types
     df = df[~df["intake_type"].isin(["Euthanasia Request", "Wildlife"])].copy()
+
+    df["is_puppy"] = (df["age_days"] < 365).astype(int)
+    df["is_senior"] = (df["age_days"] >= 365 * 7).astype(int)
+    df["age_log"] = np.log1p(df["age_days"])
+
+    df["puppy_and_intact"] = ((df["age_days"] < 365) & (df["intact"] == "Intact")).astype(int)
+
+    df["stray_and_intact"] = ((df["intake_type"] == "Stray") & (df["intact"] == "Intact")).astype(int)
+
+    df["breed_age"] = df["primary_breed"] + "_" + df["is_puppy"].astype(str)
 
 
     # Fill categorical missing values
