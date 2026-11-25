@@ -142,7 +142,6 @@ def feature_engineering_days(df):
 
     df["intake_hour"] = df["datetime"].dt.hour
 
-
     #seasonality
     df["month_sin"] = np.sin(2 * np.pi * df["datetime"].dt.month / 12)
     df["month_cos"] = np.cos(2 * np.pi * df["datetime"].dt.month / 12)

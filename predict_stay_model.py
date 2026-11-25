@@ -34,8 +34,7 @@ RECALL_TARGET = 0.8              # cel recall dla klasy >30 dni przy wyborze pro
 DROP_COLS = [
     "target", "time_in_shelter_days", "time_in_shelter",
     "outcome_type", "outcome_subtype", "sex_upon_outcome",
-    "intake_datetime", "animal_type", "young_and_cat", "datetime",
-    "animal_id_intake", "name", "found_location",
+    "intake_datetime", "animal_type", "young_and_cat", "datetime", "animal_id_intake"
 ]
 
 # Pola, których wymaga feature_engineering_days (dla nowego zwierzęcia)
@@ -47,10 +46,13 @@ REQUIRED = [
 
 def make_X(df):
     X = df.drop(columns=[c for c in DROP_COLS if c in df.columns]).copy()
+
     bool_cols = X.select_dtypes(include=["bool"]).columns
     X[bool_cols] = X[bool_cols].astype(int)
+
     cat_cols = X.select_dtypes(include=["object", "category"]).columns.tolist()
     X[cat_cols] = X[cat_cols].fillna("Unknown").astype(str)
+
     return X, cat_cols
 
 
@@ -67,11 +69,13 @@ def load_training_data(animal):
         right_on=["animal_id_intake", "intake_datetime"],
         how="inner",
     )
+
     df = df[df["animal_type"] == animal].copy()
     df = feature_engineering_days(df)
     df = df.sort_values("intake_datetime").reset_index(drop=True)
     df = df.dropna(subset=["time_in_shelter_days"]).reset_index(drop=True)
     df["target"] = pd.cut(df["time_in_shelter_days"], bins=BINS, labels=[0, 1, 2]).astype(int)
+    
     return df
 
 
@@ -104,6 +108,7 @@ def train(animal):
     y_te_long = (y_te == 2).astype(int)
     flag = p_te[:, 2] >= threshold_long
     tp = np.sum(flag & (y_te_long == 1))
+
     print(f"\n[{animal}] train={len(X_tr)} val={len(X_va)} test={len(X_te)}")
     print(f"Log loss (test):          {log_loss(y_te, p_te, labels=[0, 1, 2]):.4f}")
     print(f"Macro F1 (test):          {f1_score(y_te, p_te.argmax(axis=1), average='macro'):.4f}")
