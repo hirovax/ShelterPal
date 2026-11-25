@@ -90,7 +90,6 @@ def explain_animal(animal_type, animal_data):
 
     return explanations
 
-
 def get_animal_info():
     print("animal-info")
 
