@@ -37,6 +37,110 @@ def load_model(animal_type):
 
     return model
 
+
+
+RAW_DIR = Path(__file__).resolve().parent / "data" / "austin" / "raw"
+
+def load_historical_data(animal_type: str) -> pd.DataFrame:
+    """Loads and caches data from acc_intakes_outcomes.csv"""
+    animal_key = animal_type.strip().capitalize()  # 'Dog' lub 'Cat'
+    cache_key = f"history_{animal_key.lower()}"
+
+    if cache_key in _CACHE:
+        return _CACHE[cache_key]
+
+    file_path = RAW_DIR / "aac_intakes_outcomes.csv"
+
+    df = pd.read_csv(
+        file_path,
+        usecols=["animal_type", "breed", "intake_type", "time_in_shelter_days"]
+    )
+
+    df = df[df["animal_type"] == animal_key].dropna(subset=["time_in_shelter_days"]).copy()
+
+    df["breed_clean"] = df["breed"].astype(str).str.lower().str.strip()
+    df["intake_type_clean"] = df["intake_type"].astype(str).str.lower().str.strip()
+
+    _CACHE[cache_key] = df
+    return df
+
+
+def query_history(
+        animal_type: str,
+        breed: str = "",
+        intake_type: str = "",
+        min_sample_size: int = 10
+    ) -> dict:
+    """Aggregates historical shelter stay statistics, medians, percentiles, 
+    and long-stay rates for a given animal segment, breed, or intake type.
+
+    Args:
+        animal_type: 'dog' or 'cat'
+        breed: Breed name or substring (e.g., 'Pit Bull', 'Labrador Retriever', 'Domestic Shorthair')
+        intake_type: Intake reason (e.g., 'Stray', 'Owner Surrender', 'Public Assist')
+        min_sample_size: Minimum records required for specific breed/intake slice (default 10)
+    """
+    print(">>> [TOOL EXECUTION] query_history has been called!")
+
+    clean_animal = animal_type.strip().lower()
+    if clean_animal not in ["dog", "cat"]:
+        return {"error": "animal_type must be 'dog' or 'cat'"}
+
+    df = load_historical_data(clean_animal)
+    filtered = df
+    applied_filters = {"animal_type": clean_animal}
+
+    # filtering by breed
+    if breed:
+        breed_term = breed.strip().lower()
+        breed_subset = filtered[filtered["breed_clean"].str.contains(breed_term, na=False, regex=False)]
+        
+        if len(breed_subset) >= min_sample_size:
+            filtered = breed_subset
+            applied_filters["breed"] = breed
+        else:
+            applied_filters["breed_note"] = (
+                f"Only {len(breed_subset)} cases found for '{breed}'. "
+                f"Showing broader statistics for all {clean_animal}s instead."
+            )
+
+    # filtering by intake type
+    if intake_type:
+        intake_term = intake_type.strip().lower()
+        intake_subset = filtered[filtered["intake_type_clean"] == intake_term]
+        
+        if len(intake_subset) >= min_sample_size:
+            filtered = intake_subset
+            applied_filters["intake_type"] = intake_type
+        else:
+            applied_filters["intake_type_note"] = (
+                f"Insufficient sample ({len(intake_subset)}) for intake_type '{intake_type}'."
+            )
+
+    sample_size = len(filtered)
+    if sample_size == 0:
+        return {"error": "No historical cases matched these criteria.", "applied_filters": applied_filters}
+
+    stay = filtered["time_in_shelter_days"]
+
+    # calculating key metrics for catboost
+    pct_under_4 = float((stay <= 4.0).mean() * 100)
+    pct_4_to_10 = float(((stay > 4.0) & (stay <= 10.0)).mean() * 100)
+    pct_over_10 = float((stay > 10.0).mean() * 100)
+
+    return {
+        "applied_filters": applied_filters,
+        "sample_size": int(sample_size),
+        "median_days": round(float(stay.median()), 1),
+        "mean_days": round(float(stay.mean()), 1),
+        "p25_days": round(float(stay.quantile(0.25)), 1),
+        "p75_days": round(float(stay.quantile(0.75)), 1),
+        "historical_under_or_equal_4_days_pct": round(pct_under_4, 1),
+        "historical_between_4_and_10_days_pct": round(pct_4_to_10, 1),
+        "historical_over_10_days_pct": round(pct_over_10, 1),
+    }
+
+
 def predict_animal(animal_type: str,
 
     sex_upon_intake: str = "",
@@ -46,7 +150,8 @@ def predict_animal(animal_type: str,
     intake_type: str = "Stray",
     intake_condition: str = "Normal",
     name: str = "",
-    datetime: str = "") -> dict:
+    datetime: str = "",
+    ) -> dict:
     """Predicts shelter length of stay for an animal.
 
     Args:
@@ -73,7 +178,7 @@ def predict_animal(animal_type: str,
         "intake_condition": intake_condition,
         "name": name if name else None,
         "datetime": pd.to_datetime(datetime) if datetime else pd.Timestamp.now(),
-        "found_location": ""
+        "found_location": "",
     }
 
     df = pd.DataFrame([row])
@@ -174,16 +279,6 @@ def explain_animal(animal_type: str,
 
     return explanations
 
-def get_animal_info():
-    print("animal-info")
-
-def get_high_risk_animals():
-    print("high-risk")
-
-def shelter_statistics():
-    print("shelter-statistics")
-
-
 
 
 def run_shelter_agent(user_message: str):
@@ -199,7 +294,7 @@ def run_shelter_agent(user_message: str):
         model="gemini-3.5-flash-lite",
         config=types.GenerateContentConfig(
             system_instruction=system_instruction,
-            tools=[predict_animal, explain_animal],
+            tools=[predict_animal, explain_animal,query_history],
             automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=False),
             temperature=0.0,
         ),
@@ -234,6 +329,7 @@ def main():
     "We just took in an intact male dog, about 7 years old, Pit Bull Mix. "
     "He was brought in as a stray with no collar or name, and his intake health condition is normal. "
     "How long is he expected to stay in the shelter, and what are the main reasons behind this prediction?"
+    "How does it look compared to other pitbulls in our shelter?"
 )
     
     print("Question:", test_query)
